@@ -5,7 +5,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const mysql = require("mysql");
 const PORT = process.env.PORT || 8081;
 
-const token = "YOUR_TELEGRAM_BOT_TOKEN";
+const token = "7439197149:AAGQTWGNPV9VI3CATmX9Q8Dxa5kHrj_Rw00";
 
 app.use(cors());
 app.use(express.json());
@@ -43,10 +43,10 @@ bot.onText(/\/start/, (msg) => {
   const message = `
 \n*📌 DIQQAT📌*\n
 *❗️FAQAT IOS/ANDROID ✅*\n
-❌EMULYATOR TAQIQLANADI❌\n
+*❌EMULYATOR TAQIQLANADI❌*\n
 *❗️AKKAUNTDAN CHIQIB KETISH MUMKIN EMAS 📌*\n
 _Qaytib kirish niyatiz yoq bolsa yoki vaqtiz tugagandagina chiqing boshqa holatda chiqib ketib qolsangiz qayta pullik. Internetiz stabilniy bolsa oling faqat! internet ishlamay qolib chiqib ketsangiz bizda emas ayb!_\n
-*❗️PINdagi DRUZYA LARNI CHOPISH MUMKIN EMAS,* _boshqa druzyalarni bemalol uchirishiz yo qoshishiz mumkin_⚠️\n
+*❗️PINdagi DRUZYA LARNI CHOPISH MUMKIN EMAS,* *boshqa druzyalarni bemalol uchirishiz yo qoshishiz mumkin⚠️*\n
 *✅ NICK OZGARTIRISH MUMKIN ADMINDAN SORAB ✅*\n
 *❗️CHIT BILAN OYNASH TAQIQLANADI📌*\n
 *✅ PROVERKA QILINADI CHIT ANIQLANSA PULIZ QAYTARILMEDI VA BLOCKLANASIZ ❌*\n
@@ -75,10 +75,11 @@ bot.on("callback_query", (callbackQuery) => {
       chatId,
       `
 *SIZDAN TALAB QILINADI👇*\n
-*1. 🛂 PASSPORT ✅*\n
-*2. 📍LAKATSIYA ✅*\n
-*3. 🎥 AKK JAVOBGARLIKNI OLAMAN DEGAN VIDEO✅*\n
-_Video gapirasiz men (ISM FAMILYA), (Tugilgan Sana)da tug'ilganman, ATOMIC ARENDA dan akk arenda olaman Akkauntga biron nima bolsa hammasini javobgarligini olaman_\n
+*1. 📱 TELEFON RAQAM ✅*\n
+*2. 🛂 PASSPORT ✅*\n
+*3. 📍LAKATSIYA ✅*\n
+*4. 🎥 AKK JAVOBGARLIGINI OLAMAN DEGAN VIDEO✅*\n
+_Videoda gapirasiz men (ISM FAMILYA), (Tugilgan Sana)da tug'ilganman, ATOMIC ARENDA dan akk arenda olaman Akkauntga biron nima bolsa hammasini javobgarligini olaman_\n
 _Yuqoridagini gapirib bolib passport korsatasiz videoda korinsin_👆\n
 *📱60 FPS+ BOLISHI SHART ⚠️*\n
 *✅ PROVERKA QILINADI CHIT ANIQLANSA PULIZ QAYTARILMEDI VA BLOCKLANASIZ ❌*\n
@@ -97,11 +98,11 @@ _Yuqoridagini gapirib bolib passport korsatasiz videoda korinsin_👆\n
     };
     bot.sendMessage(chatId, "Iltimos telefon raqamingizni ulashing:", options);
   } else if (
-    callbackData.startsWith("admin_accept") ||
-    callbackData.startsWith("admin_reject")
+    callbackData?.startsWith("admin_accept") ||
+    callbackData?.startsWith("admin_reject")
   ) {
-    const userId = callbackData.split("_")[2];
-    const action = callbackData.split("_")[1];
+    const userId = callbackData?.split("_")[2];
+    const action = callbackData?.split("_")[1];
     handleAdminResponse(userId, action);
   }
 });
@@ -110,6 +111,9 @@ function handleAdminResponse(userId, action) {
   if (action === "accept") {
     const user = userInfo[userId];
     const groupChatId = "-1002043732390";
+    const link = user?.username
+      ? `@${user?.username}`
+      : `[${user?.name}](tg://user?id=${user?.userId})`;
     const adminMessage = `
 Yangi Registiratsiya:
 - ism: ${user?.name}
@@ -150,13 +154,26 @@ Yangi Registiratsiya:
           userId,
           "Tabriklaymiz! Sizning ma'lumotlaringiz qabul qilindi."
         );
+        adminChatIds.forEach((adminChatId) => {
+          bot.sendMessage(
+            adminChatId,
+            `Yangi ${link} foydalanuvchi qo'shildi.`,
+            { parse_mode: "Markdown" }
+          );
+        });
       }
     });
   } else if (action === "reject") {
     bot.sendMessage(
       userId,
-      "Kechirasiz, Sizning ma'lumotlaringiz qabul qilinmadi. Qayta urinib ko'ring."
+      `Kechirasiz, Sizning ma'lumotlaringiz qabul qilinmadi. Qayta urinib ko'ring @/start.`,
+      {
+        parse_mode: "Markdown",
+      }
     );
+    adminChatIds.forEach((adminChatId) => {
+      bot.sendMessage(adminChatId, `${userId}-nin malumotlari bekor qilindi.`);
+    });
   }
 }
 
@@ -173,11 +190,14 @@ bot.on("message", (msg) => {
     bot.deleteMessage(chatId, msg.message_id);
   }
 
-  if (command === "/get_all_user" && ownersChatId.includes(userId.toString())) {
+  if (
+    command === "/get_all_user" &&
+    ownersChatId?.includes(userId.toString())
+  ) {
     fetchAllUsers(chatId);
   } else if (
     command === "/get_user_by_id" &&
-    ownersChatId.includes(userId.toString())
+    ownersChatId?.includes(userId.toString())
   ) {
     bot.sendMessage(
       chatId,
@@ -185,8 +205,11 @@ bot.on("message", (msg) => {
     );
   }
 
-  if (command.startsWith("id:") && ownersChatId.includes(userId.toString())) {
-    const id = command.split(":")[1];
+  if (
+    command?.startsWith("id:") &&
+    ownersChatId?.includes(userId?.toString())
+  ) {
+    const id = command?.split(":")[1];
     fetchUserById(chatId, id);
   }
 });
@@ -250,10 +273,7 @@ let userInfo = {};
 bot.on("contact", (msg) => {
   const chatId = msg.chat.id;
   userInfo[chatId] = { ...userInfo[chatId], phone: msg.contact.phone_number };
-  bot.sendMessage(
-    chatId,
-    "Telefon raqamingiz qabul qilindi. Iltimos passportingizning rasmni yuboring."
-  );
+  bot.sendMessage(chatId, "Passportingizning rasmni yuboring.");
 });
 
 bot.on("photo", (msg) => {
@@ -263,27 +283,19 @@ bot.on("photo", (msg) => {
     photo: msg.photo[msg.photo.length - 1].file_id,
     name: msg.chat.first_name,
   };
-  bot
-    .sendMessage(chatId, "Rasm qabul qilindi")
-    .then(() => {
-      const options = {
-        reply_markup: {
-          keyboard: [
-            [{ text: "Locatsiyamni ulashish", request_location: true }],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        },
-      };
-      return bot.sendMessage(
-        chatId,
-        "Iltimos shaxsiy Locatsiyangizni ulang:",
-        options
-      );
-    })
-    .catch((error) => {
-      console.error("Error sending message:", error);
-    });
+
+  const options = {
+    reply_markup: {
+      keyboard: [[{ text: "Locatsiyamni ulashish", request_location: true }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  };
+  return bot.sendMessage(
+    chatId,
+    "Iltimos shaxsiy Locatsiyangizni ulang:",
+    options
+  );
 });
 
 bot.on("location", (msg) => {
@@ -291,7 +303,11 @@ bot.on("location", (msg) => {
   userInfo[chatId] = { ...userInfo[chatId], location: msg.location };
   bot.sendMessage(
     chatId,
-    "Locatsiya qabul qilindi. Iltimos endi video habaringizni yuboring."
+    `Iltimos endi AKK JAVOBGARLIGINI OLAMAN degan video jo'nating, videoda gapirasiz:\n\n> Men, Ism Familiya, Tugilgan Sana, da tug'ilganman, ATOMIC ARENDA dan akk arenda olaman Akkauntga biron nima bolsa hammasini javobgarligini olaman\n
+    `,
+    {
+      parse_mode: "MarkdownV2",
+    }
   );
 });
 
@@ -326,8 +342,10 @@ Yangi Registiratsiya:
       caption: adminMessage,
       reply_markup: {
         inline_keyboard: [
-          { text: "Accept", callback_data: `admin_accept_${chatId}` },
-          { text: "Reject", callback_data: `admin_reject_${chatId}` },
+          [
+            { text: "Accept", callback_data: `admin_accept_${chatId}` },
+            { text: "Reject", callback_data: `admin_reject_${chatId}` },
+          ],
         ],
       },
       parse_mode: "Markdown",
@@ -336,7 +354,7 @@ Yangi Registiratsiya:
 
   bot.sendMessage(
     chatId,
-    "Barcha malumot adminga yetkazildi. Tez orada siz bilan bog'lanamiz."
+    "Barcha malumotlaringiz ko'rib chiqilmoqda. Iltimos admin tasdiqlashini kuting!"
   );
 });
 

@@ -2,7 +2,7 @@
   "name": "bot",
   "version": "1.0.0",
   "description": "registration of users in the database and sending messages to the telegram bot for rent chanel",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
@@ -14,7 +14,9 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "mysql": "^2.18.1",
-    "node-telegram-bot-api": "^0.66.0",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
     "nodemon": "^3.1.3"
   }
 }
