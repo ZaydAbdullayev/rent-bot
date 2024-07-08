@@ -1,14 +1,14 @@
 const cors = require("cors");
 const TelegramBot = require("node-telegram-bot-api");
 const mysql = require("mysql");
-const { chunkArray, convertToTimeFormat, fetchAllUsers, fetchUserById, handleAdminResponse } = require("./utils");
+const { chunkArray, convertToTimeFormat, fetchAllUsers, fetchUserById, handleAdminResponse, generateId, handleUserResponse } = require("./utils");
 
 const token = "6874634713:AAEMZ_dAfQzeMibFqH08A7bks3FXOY7zo80";
 
 const bot = new TelegramBot(token, { polling: true });
 
 const ownersChatId = ["1831538012", "5632648116"];
-const adminChatIds = ["1831538012", "5632648116"];
+const adminChatIds = ["1831538012",];
 
 const dbConfig = {
   host: "162.55.134.175",
@@ -64,9 +64,8 @@ bot.on("polling_error", (error) => {
 });
 
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg.from.id;
   const userID = msg.from.id;
-  console.log(msg);
   if (ownersChatId.includes(userID.toString())) {
     bot.setMyCommands(adminCommands, {
       scope: { type: "chat", chat_id: chatId },
@@ -105,15 +104,15 @@ bot.onText(/\/start/, (msg) => {
 let form = {};
 
 bot.on("callback_query", (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
-  const callbackData = callbackQuery.data;
   const userId = callbackQuery.from.id;
   const username = callbackQuery.from.username;
   const name = callbackQuery.from.first_name;
+  const callbackData = callbackQuery.data;
+  console.log("callbackData:", callbackData);
 
   if (callbackData === "accept_rules") {
     bot.sendMessage(
-      chatId,
+      userId,
       `
 *SIZDAN TALAB QILINADI👇*\n
 *1. 📱 TELEFON RAQAM ✅*\n
@@ -139,51 +138,58 @@ _Yuqoridagini gapirib bolib passport korsatasiz videoda korinsin_👆\n
       parse_mode: "Markdown",
     };
     bot.sendMessage(
-      chatId,
+      userId,
       "*Iltimos telefon raqamingizni ulashing:*",
       options
     );
   } else if (callbackData?.startsWith("admin_")) {
     const userId = callbackData?.split("_")[2];
     const action = callbackData?.split("_")[1];
-    handleAdminResponse(userId, action, userInfo);
+    handleAdminResponse(userId, action, userInfo, adminChatIds);
   }
 
   if (callbackData.startsWith("acc_number")) {
     const acc_number = callbackData.split("_")[2];
-    form[chatId] = { ...form[chatId], acc_number, order: "time" };
-    bot.sendMessage(chatId, "*Vaqtini raqam* _(1/1.5/2)_ *ko'rishinda kiriting:*", {
-      parse_mode: "Markdown",
-    });
+    form[userId] = { ...form[userId], acc_number, order: "time" };
+    bot.sendMessage(
+      userId,
+      "*Vaqtini raqam* _(1/1.5/2)_ *ko'rishinda kiriting:*",
+      {
+        parse_mode: "Markdown",
+      }
+    );
   }
 
   if (callbackData.startsWith("form_")) {
-    const chatId = callbackData.split("_")[2];
-    const user = form[chatId];
-    const groupChatId = "-1002043732390";
-    const formattedValue = user?.price?.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const link = username
-      ? `@${username}`
-      : `[${name}](tg://user?id=${userId})`;
-    const adminMessage = `
-  New Order:
-  - ism: ${name}
-  - user name: ${link}
-  - user ID: ${userId}
-  - ACC: ${user?.acc_number}
-  - VAQTI: ${convertToTimeFormat(user?.time)}
-  - NARXI: ${formattedValue}
-      `;
-
-    bot.sendMessage(groupChatId, adminMessage, { parse_mode: "Markdown" });
+    const us_id = callbackData.split("_")[2];
+    const action = callbackData.split("_")[1];
+    if (action === "accept") {
+      const user = templateDatas[us_id];
+      const value = {
+        acc_number: user?.acc_number,
+        time: user?.time,
+        price: user?.price,
+        userId,
+        username,
+        name,
+      }
+      handleUserResponse(value, adminChatIds, pool, bot);
+    } else if (action === "reject") {
+      adminChatIds.forEach((adminChatId) => {
+        bot.sendMessage(
+          adminChatId,
+          `[${name}](tg://user?id=${userId}) buyurtma shablonini qabul qilmadi!`,
+          { parse_mode: "Markdown" }
+        );
+      });
+    }
   }
-})
+});
 
 bot.on("message", (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg.from.id;
   const userId = msg.from.id;
   const command = msg.text;
-  console.log("m", msg);
   if (ownersChatId?.includes(userId.toString())) {
     if (command === "/get_all_user") {
       fetchAllUsers(chatId);
@@ -202,65 +208,105 @@ bot.on("message", (msg) => {
 
     if (command === "/create_form") {
       form[chatId] = {};
-      const chunkedAccData = chunkArray(accData, 4);
-      bot.sendMessage(
-        chatId,
-        "*Akkaunt tanlang:*",
-        {
-          reply_markup: {
-            inline_keyboard: chunkedAccData.map(chunk => chunk.map(acc => ({ text: acc, callback_data: `acc_number_${acc}` }))),
-          },
-          parse_mode: "Markdown"
-        }
-      );
+      const chunkedAccData = chunkArray(accData, 5);
+      bot.sendMessage(chatId, "*Akkaunt tanlang:*", {
+        reply_markup: {
+          inline_keyboard: chunkedAccData.map((chunk) =>
+            chunk.map((acc) => ({
+              text: acc,
+              callback_data: `acc_number_${acc}`,
+            }))
+          ),
+        },
+        parse_mode: "Markdown",
+      });
     }
   }
 });
 
-bot.on('text', (msg) => {
-  const chatId = msg.chat.id;
+bot.on("text", (msg) => {
+  const chatId = msg.from.id;
   const userId = msg.from.id;
   const us = form?.[chatId] || {};
   const messageText = msg.text;
-  console.log('t', msg);
   const isNumeric = /^\d+$/.test(messageText);
-  const value = messageText.replace(/[^\d.]/g, '');
-
+  const value = messageText.replace(/[^\d.]/g, "");
   if (ownersChatId?.includes(userId.toString()) && isNumeric) {
-    if (us?.order === 'time') {
-      form[chatId] = { ...form[chatId], time: value, order: 'price' };
+    if (us?.order === "time") {
+      form[chatId] = { ...form[chatId], time: value, order: "price" };
       bot.sendMessage(
         chatId,
-        `*Vaqt: ${convertToTimeFormat(value)} etib qabul qilindi. Endi narxini*  _bo'shliq va harflarsiz (1000)_  *ko'rinishida kiriting:*`,
+        `*Vaqt: ${convertToTimeFormat(
+          value
+        )} etib qabul qilindi. Endi narxini*  _bo'shliq va harflarsiz (1000)_  *ko'rinishida kiriting:*`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: "Markdown",
         }
       );
-    } else if (us?.order === 'price') {
-      bot.sendMessage(chatId, 'Harid shabloni tayyor', { parse_mode: 'Markdown' });
-      form[chatId] = { ...form[chatId], price: value, order: 'confirm' };
-      const options = {
+    } else if (us?.order === "price") {
+      const id = generateId();
+      bot.sendMessage(
+        chatId,
+        `Harid shabloni tayyor va  \`${id}\` kaliti bilan saqlandi!`,
+        { parse_mode: "Markdown" }
+      );
+      form[chatId] = { ...form[chatId], price: value, order: "confirm" };
+      templateDatas[id] = form[chatId];
+      const formattedValue = value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      const forma = `Sizning buyurtmangiz:\n\nACC — ${us?.acc_number
+        }\nVAQTI — ${convertToTimeFormat(
+          us?.time
+        )} ga\n NARXI — ${formattedValue} so'm\n\nBuni qabul qilasiz mi?`;
+      callballResult.push({
+        type: "article",
+        id: "1",
+        title: id,
+        input_message_content: {
+          message_text: forma,
+        },
+        description: "Buyurtma shabloni",
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "Yo'q", callback_data: `form_reject_${chatId}` },
-              { text: 'Ha', callback_data: `form_accept_${chatId}` },
+              { text: "Yo'q", callback_data: `form_reject_${id}` },
+              { text: "Ha", callback_data: `form_accept_${id}` },
             ],
           ],
         },
-        parse_mode: 'Markdown',
-      };
-      const formattedValue = value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-      const forma = `Sizning buyurtmangiz:\n\nACC — ${us?.acc_number}\nVAQTI — ${convertToTimeFormat(us?.time)} ga\n NARXI — ${formattedValue} so'm\n\nBuni qabul qilasiz mi?`;
-      bot.sendMessage(chatId, forma, options);
+        parse_mode: "Markdown",
+      });
+      console.log("callballResult:", callballResult);
     }
   }
+});
+
+let templateDatas = {}
+
+let callballResult = [];
+
+bot.on("inline_query", (query) => {
+  const queryId = query.id;
+  const queryText = query.query;
+  const userId = query.from.id;
+
+  if (adminChatIds.includes(userId.toString())) {
+    if (queryText === "") {
+      bot.answerInlineQuery(queryId, [], {
+        cache_time: 0,
+      });
+    } else {
+      bot.answerInlineQuery(queryId, callballResult, {
+        cache_time: 0,
+      });
+    }
+  }
+
 });
 
 let userInfo = {};
 
 bot.on("contact", (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg?.chat?.id;
   userInfo[chatId] = { ...userInfo[chatId], phone: msg.contact.phone_number };
   bot.sendMessage(chatId, "*Passportingizning rasmni yuboring.*", {
     parse_mode: "Markdown",
@@ -268,11 +314,11 @@ bot.on("contact", (msg) => {
 });
 
 bot.on("photo", (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg?.chat?.id;
   userInfo[chatId] = {
     ...userInfo[chatId],
     photo: msg.photo[msg.photo.length - 1].file_id,
-    name: msg.chat.first_name,
+    name: msg?.chat?.first_name,
   };
 
   const options = {
@@ -291,7 +337,7 @@ bot.on("photo", (msg) => {
 });
 
 bot.on("location", (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg?.chat?.id;
   userInfo[chatId] = { ...userInfo[chatId], location: msg.location };
   bot.sendMessage(
     chatId,
@@ -304,7 +350,7 @@ bot.on("location", (msg) => {
 });
 
 bot.on("video_note", (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg?.chat?.id;
   userInfo[chatId] = {
     ...userInfo[chatId],
     video_note: msg.video_note.file_id,
